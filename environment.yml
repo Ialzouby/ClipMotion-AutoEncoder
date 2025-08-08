@@ -1,0 +1,19 @@
+name: ClipMotionAE
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy=1.26.4
+  - pytorch=2.2.2
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.1
+  - tqdm
+  - scipy
+  - pip:
+      - transformers==4.40.1
+      - datasets
