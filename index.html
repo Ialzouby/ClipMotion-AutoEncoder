@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MotionAE (Text-Conditioned) — HumanML3D + CLIP</title>
+  <meta name="description" content="Text-conditioned motion autoencoder on HumanML3D using CLIP text embeddings. Includes architecture, metrics, visuals, code, and environment." />
+
+  <!-- Tailwind: class-based dark mode -->
+  <script>
+    window.tailwind = window.tailwind || {};
+    window.tailwind.config = { darkMode: 'class' };
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Theme init: single source of truth is the 'dark' class on <html> -->
+  <script>
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const useDark = saved ? (saved === 'dark') : prefersDark;
+      document.documentElement.classList.toggle('dark', useDark);
+    })();
+  </script>
+
+  <style>
+    html { scroll-behavior: smooth; }
+    .prose pre { white-space: pre-wrap; }
+    .dot { width: 12px; height: 12px; border-radius: 9999px; }
+
+    /* --- Theme via CSS variables, controlled by .dark on <html> --- */
+    :root {
+      --bg: #fafafa; --fg: #111827;
+      --muted: #4b5563; --card: #ffffff; --card-border: #e5e7eb; --subtle: #f3f4f6;
+      --code-bg: #0b1020; --code-fg: #e5ecff; --code-border: #111a33;
+    }
+    .dark {
+      --bg: #0a0a0a; --fg: #e5e7eb;
+      --muted: #9ca3af; --card: #0f0f12; --card-border: #1f2937; --subtle: #0b0b0d;
+      --code-bg: #0b1020; --code-fg: #e5ecff; --code-border: #111a33;
+    }
+
+    html, body { background: var(--bg) !important; color: var(--fg) !important; }
+    header { background: color-mix(in oklab, var(--bg) 85%, transparent) !important; border-color: var(--card-border) !important; }
+    section { border-color: var(--card-border) !important; }
+    .card { background: var(--card) !important; border-color: var(--card-border) !important; }
+    .muted { color: var(--muted) !important; }
+    .subtle { background: var(--subtle) !important; }
+
+    .term { background: var(--card) !important; border: 1px solid var(--card-border) !important; border-radius: 1rem; overflow: hidden; }
+    .term-head { background: var(--subtle) !important; border-bottom: 1px solid var(--card-border) !important; }
+    .term-pre { background: var(--code-bg) !important; color: var(--code-fg) !important; border-top: 1px solid var(--code-border); margin: 0; }
+    .term-pre code { color: var(--code-fg) !important; }
+
+    .panel { background: var(--card) !important; border-color: var(--card-border) !important; }
+  </style>
+</head>
+<body>
+  <!-- Sticky header -->
+  <header class="sticky top-0 z-50 backdrop-blur border-b">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="#top" class="text-lg font-semibold">MotionAE · CLIP-Conditioned</a>
+      <nav class="hidden md:flex gap-6 text-sm muted">
+        <a href="#paper">Paper</a>
+        <a href="#code">Code</a>
+        <a href="#abstract">Abstract</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#text">Text Conditioning</a>
+        <a href="#metrics">Metrics</a>
+        <a href="#results">Results</a>
+        <a href="#reproduce">Reproduce</a>
+        <a href="#bibtex">BibTeX</a>
+      </nav>
+      <button id="themeToggle" class="ml-4 rounded-full px-3 py-1 text-sm border" aria-label="Toggle theme" title="Toggle light/dark">🌞/🌙</button>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <section id="top" class="subtle border-b">
+    <div class="max-w-6xl mx-auto px-4 py-16 md:py-24">
+      <p class="text-sm uppercase tracking-widest muted">Project Preview</p>
+      <h1 class="text-4xl md:text-6xl font-extrabold leading-tight mt-2">Text-Conditioned Motion Autoencoder (HumanML3D + CLIP)</h1>
+      <p class="mt-4 muted max-w-3xl">
+        An MLP autoencoder for human motion sequences, conditioned on CLIP text embeddings of the motion caption.
+        Trained/validated on HumanML3D (SMPL-H, 22 joints, 196 frames, 263-D features). This page shows the architecture, the CLIP
+        conditioning pathway, metrics (MSE/MAE/L2), and example visualizations, with links to code and environment.
+      </p>
+
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a id="paper" href="#" class="px-3 py-1 rounded-full border">arXiv (coming soon)</a>
+        <a id="code" href="#" class="px-3 py-1 rounded-full border">Code</a>
+        <a href="#reproduce" class="px-3 py-1 rounded-full border">environment.yml</a>
+        <a id="weights" href="#" class="px-3 py-1 rounded-full border">Pretrained Weights (.pth)</a>
+      </div>
+
+      <div class="mt-8 muted">
+        <p class="text-sm">Issam Alzouby</p>
+        <p class="text-xs">UNC Charlotte</p>
+      </div>
+
+      <div class="mt-10 grid md:grid-cols-2 gap-4">
+        <figure class="card p-3 border rounded-2xl">
+          <img src="assets/teaser_reconstruction.gif" alt="Original vs Reconstructed motion teaser" class="w-full h-auto rounded-xl" />
+          <figcaption class="text-xs muted mt-2">Original vs reconstructed joint trajectories. (Replace with your own GIF.)</figcaption>
+        </figure>
+        <figure class="card p-3 border rounded-2xl">
+          <img src="assets/teaser_latent.png" alt="Latent space scatter" class="w-full h-auto rounded-xl" />
+          <figcaption class="text-xs muted mt-2">Latent space preview (e.g., UMAP/TSNE). (Placeholder.)</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- Abstract / Contributions -->
+  <section id="abstract" class="border-b">
+    <div class="max-w-6xl mx-auto px-4 py-12 grid md:grid-cols-2 gap-10">
+      <div class="prose prose-neutral dark:prose-invert">
+        <h2>Abstract</h2>
+        <p>
+          We present a text-conditioned motion autoencoder that reconstructs human motion sequences while leveraging the semantics of natural-language captions.
+          Text is encoded using CLIP (ViT-B/32) and concatenated with the motion latent to guide reconstruction. The model targets clarity and reproducibility and
+          serves as a bridge to VAE/VQ-VAE variants.
+        </p>
+      </div>
+      <div class="prose prose-neutral dark:prose-invert">
+        <h2>Contributions</h2>
+        <ul>
+          <li>Simple MLP autoencoder with CLIP-based text conditioning.</li>
+          <li>Clean PyTorch code with training/validation/visualization scripts (<code>ClipMotionAE.py</code>, <code>validate.py</code>, <code>vis.py</code>).</li>
+          <li>Ready-made figures & a one-page project site with dark/light mode and auto-loaded metrics.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- Architecture -->
+  <section id="architecture" class="border-b">
+    <div class="max-w-6xl mx-auto px-4 py-12">
+      <h2 class="text-2xl font-semibold">Architecture</h2>
+      <p class="mt-2 muted">MLP encoder/decoder; CLIP text embedding concatenated with the latent before decoding.</p>
+      <div class="mt-6 panel rounded-2xl p-5 border">
+        <img src="assets/architecture_text_conditioned.png" alt="Text-conditioned AE diagram (Encoder -> z, CLIP text -> concat -> Decoder)" class="w-full h-auto rounded-xl"/>
+      </div>
+      <div class="mt-4 grid md:grid-cols-3 gap-4 text-sm">
+        <div class="p-4 rounded-xl panel border">
+          <div class="font-semibold">Input</div>
+          <div>196 × 263 (flattened to 51548)</div>
+        </div>
+        <div class="p-4 rounded-xl panel border">
+          <div class="font-semibold">Latent</div>
+          <div>512-D</div>
+        </div>
+        <div class="p-4 rounded-xl panel border">
+          <div class="font-semibold">Text</div>
+          <div>CLIP (ViT-B/32) 512-D</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Text Conditioning -->
+  <section id="text" class="border-b subtle">
+    <div class="max-w-6xl mx-auto px-4 py-12">
+      <h2 class="text-2xl font-semibold">Text Conditioning</h2>
+      <p class="mt-2 muted">
+        Captions from HumanML3D are embedded with CLIP and fused with the motion latent via concatenation: <code>[z; t]</code> → Decoder.
+        Example prompt ideas (used during <code>vis.py</code> visualizations):
+      </p>
+      <div class="mt-4 grid md:grid-cols-3 gap-3 text-sm">
+        <div class="panel rounded-xl p-4 border">“A person walks forward and waves.”</div>
+        <div class="panel rounded-xl p-4 border">“Jogging in place with a quick arm swing.”</div>
+        <div class="panel rounded-xl p-4 border">“Slow turn to the left, then sit down.”</div>
+      </div>
+      <p class="text-xs muted mt-3">Note: This static page doesn’t run inference; use <code>vis.py</code> to generate the side-by-side video.</p>
+    </div>
+  </section>
+
+  <!-- Metrics -->
+  <section id="metrics" class="border-b">
+    <div class="max-w-6xl mx-auto px-4 py-12">
+      <h2 class="text-2xl font-semibold">Validation Metrics</h2>
+      <p class="mt-2 muted">From <code>validate.py</code> (averaged over the held-out split).</p>
+      <div class="mt-6 overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead>
+            <tr class="text-left muted">
+              <th class="py-2 pr-6">Metric</th>
+              <th class="py-2 pr-6">Value</th>
+              <th class="py-2">Notes</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y" style="border-color: var(--card-border) !important;">
+            <tr>
+              <td class="py-2 pr-6">MSE</td>
+              <td class="py-2 pr-6"><span id="mse">—</span></td>
+              <td class="py-2">Mean Squared Error (per sample mean)</td>
+            </tr>
+            <tr>
+              <td class="py-2 pr-6">MAE</td>
+              <td class="py-2 pr-6"><span id="mae">—</span></td>
+              <td class="py-2">Mean Absolute Error (per sample mean)</td>
+            </tr>
+            <tr>
+              <td class="py-2 pr-6">L2</td>
+              <td class="py-2 pr-6"><span id="l2">—</span></td>
+              <td class="py-2">Euclidean distance per sample</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs muted mt-2">Tip: export <code>assets/metrics.json</code> via <code>validate.py</code> and this table will auto-fill.</p>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="results" class="border-b subtle">
+    <div class="max-w-6xl mx-auto px-4 py-12">
+      <h2 class="text-2xl font-semibold">Results & Visualizations</h2>
+      <p class="mt-2 muted">Place your PNGs/GIFs in <code>assets/</code> and update captions as needed.</p>
+      <div class="mt-6 grid md:grid-cols-3 gap-4">
+        <figure class="panel rounded-2xl p-3 border">
+          <img src="assets/joint0_x.png" alt="Joint 0 X over time" class="w-full h-auto rounded-xl" />
+          <figcaption class="text-xs muted mt-2">Joint 0 — X position vs time (original vs reconstructed).</figcaption>
+        </figure>
+        <figure class="panel rounded-2xl p-3 border">
+          <img src="assets/joint5_y.png" alt="Joint 5 Y over time" class="w-full h-auto rounded-xl" />
+          <figcaption class="text-xs muted mt-2">Joint 5 — Y position vs time.</figcaption>
+        </figure>
+        <figure class="panel rounded-2xl p-3 border">
+          <img src="assets/joint10_z.png" alt="Joint 10 Z over time" class="w-full h-auto rounded-xl" />
+          <figcaption class="text-xs muted mt-2">Joint 10 — Z position vs time.</figcaption>
+        </figure>
+      </div>
+
+      <div class="mt-8 panel rounded-2xl p-3 border">
+        <video controls class="w-full rounded-xl" src="assets/reconstruction_comparison.mp4"></video>
+        <p class="text-xs muted mt-2">Side-by-side original vs reconstruction (generated by <code>vis.py</code>).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Weights -->
+  <section id="weights-section" class="border-b subtle">
+    <div class="max-w-6xl mx-auto px-4 py-12">
+      <h2 class="text-2xl font-semibold mb-4">Pretrained Weights</h2>
+      <p class="muted mb-4">
+        Load the text-conditioned checkpoint <code>text_conditioned_autoencoder_humanml3d.pth</code> (paths adjustable in scripts).
+      </p>
+
+      <div class="term">
+        <div class="term-head flex items-center gap-2 px-4 py-2">
+          <span class="dot bg-red-500"></span>
+          <span class="dot bg-yellow-400"></span>
+          <span class="dot bg-green-500"></span>
+          <span class="ml-3 text-xs uppercase tracking-wider muted">Terminal — Load weights</span>
+          <button class="ml-auto text-xs underline decoration-dotted" data-copy="#cmd-weights">Copy</button>
+        </div>
+        <pre id="cmd-weights" class="term-pre px-4 py-4 text-sm leading-relaxed"><code>$ python -c "import torch; m=torch.load('text_conditioned_autoencoder_humanml3d.pth', map_location='cpu'); print(type(m))"
+# Or pass map_location='cuda' if available</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Reproduce (Terminal-style blocks) -->
+  <section id="reproduce" class="border-b">
+    <div class="max-w-6xl mx-auto px-4 py-12">
+      <h2 class="text-2xl font-semibold mb-4">Reproduce</h2>
+
+      <!-- Terminal Card: Create env -->
+      <div class="term mb-6">
+        <div class="term-head flex items-center gap-2 px-4 py-2">
+          <span class="dot bg-red-500"></span>
+          <span class="dot bg-yellow-400"></span>
+          <span class="dot bg-green-500"></span>
+          <span class="ml-3 text-xs uppercase tracking-wider muted">Terminal — Create env</span>
+          <button class="ml-auto text-xs underline decoration-dotted" data-copy="#cmd-env">Copy</button>
+        </div>
+        <pre id="cmd-env" class="term-pre px-4 py-4 text-sm leading-relaxed"><code>$ conda env create -f environment.yml
+$ conda activate momask   # or your env name
+$ python ClipMotionAE.py --train
+$ python validate.py      # prints MSE / MAE / L2 and (optionally) writes assets/metrics.json
+$ python vis.py           # creates assets/reconstruction_comparison.mp4 and frame plots</code></pre>
+      </div>
+
+      <!-- Terminal Card: Dataset sanity check -->
+      <div class="term mb-6">
+        <div class="term-head flex items-center gap-2 px-4 py-2">
+          <span class="dot bg-red-500"></span>
+          <span class="dot bg-yellow-400"></span>
