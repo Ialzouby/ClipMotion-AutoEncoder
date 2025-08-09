@@ -287,3 +287,93 @@ $ python vis.py           # creates assets/reconstruction_comparison.mp4 and fra
         <div class="term-head flex items-center gap-2 px-4 py-2">
           <span class="dot bg-red-500"></span>
           <span class="dot bg-yellow-400"></span>
+          <span class="dot bg-green-500"></span>
+          <span class="ml-3 text-xs uppercase tracking-wider muted">Terminal — Dataset sample</span>
+          <button class="ml-auto text-xs underline decoration-dotted" data-copy="#cmd-ds">Copy</button>
+        </div>
+        <pre id="cmd-ds" class="term-pre px-4 py-4 text-sm leading-relaxed"><code>$ python -c "from datasets import load_dataset; print(load_dataset('TeoGchx/HumanML3D', split='train')[0].keys())"</code></pre>
+      </div>
+
+      <!-- Terminal Card: Static deploy -->
+      <div class="term">
+        <div class="term-head flex items-center gap-2 px-4 py-2">
+          <span class="dot bg-red-500"></span>
+          <span class="dot bg-yellow-400"></span>
+          <span class="dot bg-green-500"></span>
+          <span class="ml-3 text-xs uppercase tracking-wider muted">Terminal — Deploy static</span>
+          <button class="ml-auto text-xs underline decoration-dotted" data-copy="#cmd-deploy">Copy</button>
+        </div>
+        <pre id="cmd-deploy" class="term-pre px-4 py-4 text-sm leading-relaxed"><code># GitHub Pages (static)
+$ git add .
+$ git commit -m "Deploy MotionAE (text-conditioned) page"
+$ git push origin main
+
+# Or Vercel CLI
+$ npm i -g vercel
+$ vercel deploy</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- BibTeX -->
+  <section id="bibtex" class="border-b subtle">
+    <div class="max-w-6xl mx-auto px-4 py-12 prose prose-neutral dark:prose-invert">
+      <h2>BibTeX</h2>
+      <pre><code>@misc{alzouby2025motionae_clip,
+  title  = {Text-Conditioned Motion Autoencoder on HumanML3D using CLIP},
+  author = {Issam Alzouby},
+  year   = {2025},
+  url    = {https://ialzouby.github.io/Motion-AutoEncoder/}
+}</code></pre>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="py-10 text-center text-sm muted">
+    <div class="max-w-6xl mx-auto px-4">
+      <p>© <span id="year"></span> MotionAE • Built with Tailwind • <a href="#top" class="underline decoration-dotted">Back to top</a></p>
+    </div>
+  </footer>
+
+  <!-- Helpers -->
+  <script>
+    // Year
+    document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Copy buttons for terminal blocks
+    document.querySelectorAll('[data-copy]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sel = btn.getAttribute('data-copy');
+        const el = document.querySelector(sel);
+        if (!el) return;
+        const text = el.textContent.replace(/^\$ /gm, ''); // strip prompts
+        navigator.clipboard.writeText(text).then(() => {
+          const old = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => (btn.textContent = old), 1200);
+        });
+      });
+    });
+
+    // Theme toggle
+    const toggle = document.getElementById('themeToggle');
+    toggle.addEventListener('click', () => {
+      const html = document.documentElement;
+      const isDark = html.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+
+    // Load metrics.json if present
+    (async () => {
+      try {
+        const r = await fetch('assets/metrics.json');
+        if (!r.ok) return;
+        const m = await r.json();
+        if (m.mse != null) document.getElementById('mse').textContent = Number(m.mse).toFixed(6);
+        if (m.mae != null) document.getElementById('mae').textContent = Number(m.mae).toFixed(6);
+        if (m.l2  != null) document.getElementById('l2').textContent  = Number(m.l2).toFixed(6);
+      } catch (e) { /* no-op */ }
+    })();
+  </script>
+</body>
+</html>
